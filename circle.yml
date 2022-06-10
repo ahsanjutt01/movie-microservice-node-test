@@ -1,0 +1,37 @@
+machine:
+  node:
+    version: 6
+  services:
+    - docker
+dependencies:
+#  cache_directories:
+#    - "~/docker"
+#  override:
+#    - npm install --dev
+
+  pre:
+    # see: https://circleci.com/docs/1.0/docker/#caching-docker-layers
+    #- if [[ -e ~/docker/image.tar ]]; then echo "Using image cache"; docker load -i ~/docker/image.tar; fi
+    #- docker pull omerio/employee-microservice-node:latest
+    - docker build --rm=false -t omerio/employee-microservice-node .
+    #- mkdir -p ~/docker; docker save -o ~/docker/image.tar omerio/employee-microservice-node
+
+test:
+  override:
+    - npm run lint
+    - mocha --compilers js:babel-core/register './test/setup.js' './app/**/*-spec.js' --reporter mocha-junit-reporter:
+        environment:
+          MOCHA_FILE: $CIRCLE_TEST_REPORTS/junit/test-results.xml
+  post:
+    - npm run coverage
+    - bash <(curl -s https://codecov.io/bash)
+
+deployment:
+  production:
+    branch: master
+    commands:
+      - docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
+      - docker tag -f omerio/employee-microservice-node omerio/employee-microservice-node:$CIRCLE_SHA1
+      - docker push omerio/employee-microservice-node:$CIRCLE_SHA1
+      - docker push omerio/employee-microservice-node
+      #- ./deploy.sh
